@@ -771,5 +771,31 @@ render(); renderStage(); showResult2(); showResult3();
 })();
 </script>
 
+<script>
+/* 記録の回収（2026-11-22 追加）：この端末に残っている記録を、新しいサーバーにも送る。学生の操作は不要。 */
+(() => {
+  const URL_ = "https://pt-review.hcrn-hiromumi.workers.dev/api/legacy";
+  const SK = `${KEY}-legacy`;
+  let st = {}; try { st = JSON.parse(localStorage.getItem(SK) || "{}"); } catch {}
+  if (!st.device) st.device = "g" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  st.rev = st.rev || 0;
+  const save = () => { try { localStorage.setItem(SK, JSON.stringify(st)); } catch {} };
+  const fp = r => { const c = {...r}; delete c.updated_at; return JSON.stringify(c); };
+  let busy = false;
+  async function send(){
+    if (busy || typeof S === "undefined" || !S.pid) return;
+    let rec; try { rec = recordObj(); } catch { return; }
+    const f = fp(rec); if (f === st.sent) return;
+    busy = true; st.rev += 1; save();
+    try {
+      const r = await fetch(URL_, {method: "POST", body: JSON.stringify({device: st.device, rev: st.rev, record: rec})});
+      const j = await r.json(); if (j && j.ok) { st.sent = f; st.at = Date.now(); save(); }
+    } catch {} finally { busy = false; }
+  }
+  setTimeout(send, 1500); setInterval(send, 30000);
+  window.addEventListener("online", send);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") send(); });
+})();
+</script>
 </body>
 </html>
